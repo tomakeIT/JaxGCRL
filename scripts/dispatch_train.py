@@ -188,7 +188,7 @@ def build_gpu_slots(args: argparse.Namespace) -> list[str]:
 
 
 def build_job(args: argparse.Namespace, algorithm: str, env_name: str, seed: int) -> Job:
-    exp_name = f"{algorithm}_{env_name}"
+    exp_name = f"{algorithm}_{env_name}_s{seed}"
     group_name = f"{args.group_prefix}_{algorithm}_{env_name}"
     checkpoint_logdir = f"./runs/run_{exp_name}_s_{seed}/ckpt"
 

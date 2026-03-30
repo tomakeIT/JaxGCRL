@@ -82,7 +82,9 @@ The `jaxgcrl` command is equivalent to invoking `python run.py` with the same ar
 > [!NOTE]  
 > If you haven't yet configured [`wandb`](https://wandb.ai/site), you may be prompted to log in.
 
-See `scripts/train.sh` for an example config. 
+See `scripts/train.sh` for an example config.
+For matrix-style experiments across algorithms/environments/seeds, use the dispatcher in
+`scripts/dispatch_train.py` (details below).
 A description of the available agents can be generated with `jaxgcrl --help`.
 Available configs can be listed with `jaxgcrl {crl,ppo,sac,td3} --help`.
 Common flags you may want to change include:
@@ -91,6 +93,47 @@ Common flags you may want to change include:
 - **--total_env_steps**: shorter or longer runs.
 - **--num_envs**: based on how many environments your GPU memory allows.
 - **--contrastive_loss_fn, --energy_fn, --h_dim, --n_hidden, etc.**: algorithmic and architectural changes.
+
+### Multi-task Launcher (train.sh + dispatch_train.py)
+
+Use `scripts/train.sh` as the entrypoint for batched runs. By default, it runs a matrix over:
+- algorithms: `crl`, `ppo`
+- environments: `ant`, `ant_u_maze`
+- seeds: `1..5`
+- GPUs: `0 1 2`
+
+```bash
+bash scripts/train.sh
+```
+
+Preview commands only (without execution):
+```bash
+bash scripts/train.sh --dry-run
+```
+
+Customize algorithms, tasks, seeds, and multi-GPU scheduling:
+```bash
+bash scripts/train.sh \
+  --algorithms crl ppo \
+  --envs ant ant_u_maze \
+  --seeds 1 2 3 4 5 \
+  --gpu-ids 0 1 2 \
+  --jobs-per-gpu 1 \
+  --group-prefix benchmark
+```
+
+You can also call the dispatcher directly:
+```bash
+python scripts/dispatch_train.py --algorithms crl --envs ant --seeds 1 2 3 --dry-run
+```
+
+Config override priority in `scripts/dispatch_train.py`:
+1. `COMMON_DEFAULTS`
+2. `ALGO_DEFAULTS[algorithm]`
+3. `ENV_OVERRIDES[env]`
+4. `TASK_OVERRIDES[(algorithm, env)]`
+
+Use `TASK_OVERRIDES` when only a specific `(algorithm, env)` pair needs custom hyperparameters.
 
 > [!Note]
 > We recommend using [calculator by @riiswa](https://warisradji.com/jaxgcrl-calculator/) for checking the correctness of hyperparameters:
@@ -234,7 +277,8 @@ The core structure of the codebase is as follows:
 │   ├── <b>ant.py, humanoid.py, ...:</b> Most environments are here.
 │   ├── <b>assets:</b> Contains XMLs for environments.
 │   └── <b>manipulation:</b> Contains all manipulation environments.
-└── <b>scripts/train.sh:</b> Modify to choose environment and hyperparameters.
+├── <b>scripts/train.sh:</b> Entry script for batched multi-task runs.
+└── <b>scripts/dispatch_train.py:</b> Matrix dispatcher (algorithms × envs × seeds) with per-task overrides and multi-GPU scheduling.
 </code></pre>
 
 The architecture can be adjusted in `networks.py`.
