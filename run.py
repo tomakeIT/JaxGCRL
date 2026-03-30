@@ -80,12 +80,18 @@ def main(config: Config):
         "eval/episode_success_any",
         "eval/episode_success_easy",
         "eval/episode_success_hard",
+        "eval/avg_episode_length",
+        "eval/epoch_eval_time",
+        "eval/sps",
+        "eval/walltime",
         "training/actor_loss",
         "training/log_alpha",
         "training/alpha_loss",
         "training/critic_loss",
         "training/entropy",
         "training/sps",
+        "training/walltime",
+        "training/envsteps",
     ]
 
     metrics_recorder = MetricsRecorder(
