@@ -27,9 +27,9 @@ from typing import Any
 
 # Shared run settings (applies to all tasks unless overridden below).
 COMMON_DEFAULTS: dict[str, Any] = {
-    "total_env_steps": 10_000_000,
+    "total_env_steps": 100_000_000,
     "num_evals": 50,
-    "num_envs": 512,
+    "num_envs": 1024,
     "episode_length": 1000,
     "action_repeat": 1,
 }
@@ -43,9 +43,15 @@ ALGO_DEFAULTS: dict[str, dict[str, Any]] = {
         "unroll_length": 62,
         "min_replay_size": 1000,
         "max_replay_size": 10000,
-        "contrastive_loss_fn": "bwd_infonce",
-        "energy_fn": "norm",
+        "contrastive_loss_fn": "sym_infonce",
+        "energy_fn": "l2",
         "train_step_multiplier": 1,
+        "policy_lr": 6e-4,
+        "critic_lr": 3e-4,
+        "logsumexp_penalty_coeff": 0.1,
+        "h_dim": 256,
+        "n_hidden": 2,
+        "repr_dim": 64,
     },
     "ppo": {
         "batch_size": 64,
@@ -56,11 +62,27 @@ ALGO_DEFAULTS: dict[str, dict[str, Any]] = {
         "learning_rate": 1e-4,
         "entropy_cost": 1e-4,
     },
+    "sac": {
+        "batch_size": 256,
+        "discounting": 0.99,
+        "unroll_length": 62,
+        "learning_rate": 1e-4,
+        "min_replay_size": 1000,
+        "max_replay_size": 10000,
+        "train_step_multiplier": 1,
+        "h_dim": 256,
+        "n_hidden": 2,
+    },
 }
 
 
 # Environment-wide overrides, independent of algorithm.
-ENV_OVERRIDES: dict[str, dict[str, Any]] = {}
+ENV_OVERRIDES: dict[str, dict[str, Any]] = {
+    "humanoid": {"num_envs": 512},
+    "humanoid_u_maze": {"num_envs": 512},
+    "humanoid_big_maze": {"num_envs": 512},
+    "humanoid_hardest_maze": {"num_envs": 512},
+}
 
 
 # Fine-grained per (algorithm, env) overrides.
