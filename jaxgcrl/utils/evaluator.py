@@ -114,11 +114,16 @@ class ActorEvaluator:
         metrics = {}
         aggregating_fns = [
             (np.mean, ""),
-            # (np.std, "_std"),
-            # (np.max, "_max"),
-            # (np.min, "_min"),
         ]
 
+        episode_metric_names = [
+            "reward",
+            "success",
+            "success_easy",
+            "success_hard",
+            "dist",
+            "distance_from_origin",
+        ]
         for fn, suffix in aggregating_fns:
             metrics.update(
                 {
@@ -127,13 +132,8 @@ class ActorEvaluator:
                         if aggregate_episodes
                         else eval_metrics.episode_metrics[name]
                     )
-                    for name in [
-                        "reward",
-                        "success",
-                        "success_easy",
-                        "dist",
-                        "distance_from_origin",
-                    ]
+                    for name in episode_metric_names
+                    if name in eval_metrics.episode_metrics
                 }
             )
 
