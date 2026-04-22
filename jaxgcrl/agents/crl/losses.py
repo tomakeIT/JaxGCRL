@@ -1,6 +1,7 @@
 import flax.linen as nn
 import jax
 import jax.numpy as jnp
+from .mrn import mrn_energy
 
 
 def energy_fn(name, x, y):
@@ -12,13 +13,31 @@ def energy_fn(name, x, y):
         return jnp.sum(x * y, axis=-1) / (jnp.linalg.norm(x) * jnp.linalg.norm(y) + 1e-6)
     elif name == "l2":
         return -jnp.sum((x - y) ** 2, axis=-1)
+    elif name == "mrn":
+        return mrn_energy(x, y, sym_ratio=0.5)
     else:
         raise ValueError(f"Unknown energy function: {name}")
 
 
-def contrastive_loss_fn(name, logits):
+def contrastive_loss_fn(name, logits, hard_neg_beta=0.0):
     if name == "fwd_infonce":
-        critic_loss = -jnp.mean(jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1))
+        if hard_neg_beta > 0.0:
+            B = logits.shape[0]
+            eye = jnp.eye(B)
+            neg_mask = 1.0 - eye
+            masked_logits = logits * neg_mask + (-1e9) * eye
+            hardness = jax.lax.stop_gradient(
+                jax.nn.softmax(hard_neg_beta * masked_logits, axis=1) * neg_mask
+            )
+            shift = jnp.max(logits, axis=1, keepdims=True)
+            exp_logits = jnp.exp(logits - shift)
+            pos_term = exp_logits * eye
+            neg_term = exp_logits * hardness * B
+            total = pos_term + neg_term
+            weighted_lse = jnp.log(jnp.sum(total, axis=1) + 1e-12) + jnp.squeeze(shift, -1)
+            critic_loss = -jnp.mean(jnp.diag(logits) - weighted_lse)
+        else:
+            critic_loss = -jnp.mean(jnp.diag(logits) - jax.nn.logsumexp(logits, axis=1))
     elif name == "bwd_infonce":
         critic_loss = -jnp.mean(jnp.diag(logits) - jax.nn.logsumexp(logits, axis=0))
     elif name == "sym_infonce":
@@ -107,7 +126,11 @@ def update_critic(config, networks, transitions, training_state, key):
 
         # InfoNCE
         logits = energy_fn(config["energy_fn"], sa_repr[:, None, :], g_repr[None, :, :])
-        critic_loss = contrastive_loss_fn(config["contrastive_loss_fn"], logits)
+        critic_loss = contrastive_loss_fn(
+            config["contrastive_loss_fn"],
+            logits,
+            hard_neg_beta=config.get("hard_neg_beta", 0.0),
+        )
 
         # logsumexp regularisation
         logsumexp = jax.nn.logsumexp(logits + 1e-6, axis=1)

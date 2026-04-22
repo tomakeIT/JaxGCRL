@@ -160,7 +160,8 @@ class CRL:
     use_ln: bool = False
 
     contrastive_loss_fn: Literal["fwd_infonce", "sym_infonce", "bwd_infonce", "binary_nce"] = "fwd_infonce"
-    energy_fn: Literal["norm", "l2", "dot", "cosine"] = "norm"
+    energy_fn: Literal["norm", "l2", "dot", "cosine", "mrn"] = "norm"
+    hard_neg_beta: float = 0.0
 
     def check_config(self, config):
         """
@@ -200,23 +201,22 @@ class CRL:
         )
 
         env_steps_per_actor_step = config.num_envs * self.unroll_length
-        # Prefill happens in actor steps, so use the actual rounded-up actor-step count.
         num_prefill_actor_steps = int(np.ceil(self.min_replay_size / self.unroll_length))
-        num_prefill_env_steps = int(num_prefill_actor_steps * env_steps_per_actor_step)
+        actual_prefill_env_steps = num_prefill_actor_steps * env_steps_per_actor_step
+        remaining_env_steps = config.total_env_steps - actual_prefill_env_steps
+        num_training_steps_per_epoch = max(
+            1,
+            int(np.ceil(remaining_env_steps / (config.num_evals * env_steps_per_actor_step))),
+        )
 
-        # Compute total actor steps needed after prefill and round up per epoch,
-        # so the final step count is guaranteed to reach/exceed total_env_steps.
-        remaining_env_steps = max(config.total_env_steps - num_prefill_env_steps, 0)
-        total_training_actor_steps = int(np.ceil(remaining_env_steps / env_steps_per_actor_step))
-        num_training_steps_per_epoch = int(np.ceil(total_training_actor_steps / config.num_evals))
-
-        assert num_training_steps_per_epoch > 0, (
-            "total_env_steps too small for given num_envs and episode_length"
+        assert remaining_env_steps > 0, (
+            "total_env_steps must exceed replay buffer prefill "
+            "(increase total_env_steps or reduce min_replay_size / num_envs)"
         )
 
         logging.info(
-            "num_prefill_env_steps: %d",
-            num_prefill_env_steps,
+            "num_prefill_env_steps (actual): %d",
+            actual_prefill_env_steps,
         )
         logging.info(
             "num_prefill_actor_steps: %d",
@@ -225,11 +225,6 @@ class CRL:
         logging.info(
             "num_training_steps_per_epoch: %d",
             num_training_steps_per_epoch,
-        )
-        logging.info(
-            "planned_total_env_steps: %d",
-            num_prefill_env_steps
-            + config.num_evals * num_training_steps_per_epoch * env_steps_per_actor_step,
         )
 
         random.seed(config.seed)
